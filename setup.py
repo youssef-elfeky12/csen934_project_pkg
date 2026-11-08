@@ -26,7 +26,8 @@ setup(
         'console_scripts': [
 		'control = csen934_project_pkg.control:main',
             	'localization_add_noise = csen934_project_pkg.localization_add_noise:main',
-            	'localization_ekf_node = csen934_project_pkg.localization_ekf_node:main',        	
+            	'localization_ekf_node = csen934_project_pkg.localization_ekf_node:main',
+            	'teleop = csen934_project_pkg.teleop:main',       	
         ],
     },
 )

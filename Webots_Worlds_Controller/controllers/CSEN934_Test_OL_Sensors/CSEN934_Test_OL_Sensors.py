@@ -64,7 +64,7 @@ def main():
     while driver.step() != -1:
         rclpy.spin_once(node, timeout_sec=0)       # process incoming commands
         driver.setCruisingSpeed(node.speed * 3.6)  # m/s -> km/h
-        driver.setSteeringAngle(node.steer)
+        driver.setSteeringAngle(-node.steer)  # ROS: +left, Webots: +right
         node.publish_odom(driver.getTime(), gps, gyro, imu)
 
     node.destroy_node()
