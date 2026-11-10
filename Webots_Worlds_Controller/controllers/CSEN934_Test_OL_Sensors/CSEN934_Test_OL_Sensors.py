@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from ackermann_msgs.msg import AckermannDrive
+from std_srvs.srv import Trigger
 from vehicle import Driver
 
 from Define_Sensors import define_sensors
@@ -9,16 +10,45 @@ from Helping_Functions import euler_to_quaternion
 
 
 class TeslaNode(Node):
-    def __init__(self):
+    def __init__(self, driver):
         super().__init__("Tesla_Node")
+        self.driver = driver
         self.odom_pub = self.create_publisher(Odometry, "/Car_Odom_GT", 10)
         self.create_subscription(AckermannDrive, "/Car_Ackrm", self.cmd_callback, 10)
+        self.create_service(Trigger, "/Car_Reset", self.reset_callback)
         self.speed = 0.0   # m/s
         self.steer = 0.0   # rad
+
+        # Remember the start pose so /Car_Reset can put the car back there.
+        # Moving the car needs "supervisor TRUE" on the BmwX5 node in the world file.
+        self.car = driver.getSelf() if driver.getSupervisor() else None
+        if self.car is None:
+            self.get_logger().warn("Car is not a supervisor: /Car_Reset is disabled")
+        else:
+            self.start_translation = self.car.getField("translation").getSFVec3f()
+            self.start_rotation = self.car.getField("rotation").getSFRotation()
 
     def cmd_callback(self, msg):
         self.speed = msg.speed
         self.steer = msg.steering_angle
+
+    def reset_callback(self, request, response):
+        """Put the car back at its start pose, at rest."""
+        if self.car is None:
+            response.success = False
+            response.message = "Set 'supervisor TRUE' on the BmwX5 node to enable reset"
+            return response
+        self.speed = 0.0
+        self.steer = 0.0
+        self.driver.setCruisingSpeed(0.0)
+        self.driver.setSteeringAngle(0.0)
+        self.car.getField("translation").setSFVec3f(list(self.start_translation))
+        self.car.getField("rotation").setSFRotation(list(self.start_rotation))
+        self.car.resetPhysics()   # clear all velocities of the car and its wheels
+        response.success = True
+        response.message = "Car reset to its start pose"
+        self.get_logger().info(response.message)
+        return response
 
     def publish_odom(self, sim_time, gps, gyro, imu):
         msg = Odometry()
@@ -59,7 +89,7 @@ def main():
     gps, gyro, imu = define_sensors(driver, timestep)
 
     rclpy.init()
-    node = TeslaNode()
+    node = TeslaNode(driver)
 
     while driver.step() != -1:
         rclpy.spin_once(node, timeout_sec=0)       # process incoming commands

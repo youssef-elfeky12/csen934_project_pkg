@@ -5,7 +5,9 @@ import tty
 
 import rclpy
 from rclpy.node import Node
+from rclpy.signals import SignalHandlerOptions
 from ackermann_msgs.msg import AckermannDrive
+from std_srvs.srv import Trigger
 
 MAX_SPEED = 20.0      # m/s forward
 MIN_SPEED = -5.0      # m/s reverse
@@ -22,6 +24,7 @@ Teleop for /Car_Ackrm
   d / Right   : steer right (-0.05 rad)
   x           : center the steering
   space       : stop (speed = 0, steering = 0)
+  r           : reset the car to its start pose
   q           : quit
 """
 
@@ -30,9 +33,20 @@ class TeleopNode(Node):
     def __init__(self):
         super().__init__("teleop_node")
         self.pub = self.create_publisher(AckermannDrive, "/Car_Ackrm", 10)
+        self.reset_client = self.create_client(Trigger, "/Car_Reset")
         self.speed = 0.0
         self.steer = 0.0
         self.create_timer(0.05, self.publish_cmd)  # 20 Hz, keeps the last command alive
+
+    def reset_car(self):
+        self.speed = 0.0
+        self.steer = 0.0
+        if not self.reset_client.service_is_ready():
+            print("\r/Car_Reset not available. Is the Webots simulation running?")
+            return
+        future = self.reset_client.call_async(Trigger.Request())
+        future.add_done_callback(lambda f: print(f"\r{f.result().message}" if f.result()
+                                                 else "\rReset failed"))
 
     def publish_cmd(self):
         msg = AckermannDrive()
@@ -54,6 +68,8 @@ class TeleopNode(Node):
         elif key == " ":
             self.speed = 0.0
             self.steer = 0.0
+        elif key == "r":
+            self.reset_car()
 
 
 def read_key():
@@ -70,7 +86,8 @@ def read_key():
 
 
 def main():
-    rclpy.init()
+    # Keep the context alive on Ctrl+C so the final stop command can still be sent
+    rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
     node = TeleopNode()
     settings = termios.tcgetattr(sys.stdin)
     print(HELP)
@@ -85,6 +102,8 @@ def main():
                 node.handle_key(key)
                 print(f"\rspeed = {node.speed:5.1f} m/s   steering = {node.steer:+.2f} rad   ",
                       end="", flush=True)
+    except KeyboardInterrupt:
+        pass
     finally:
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)  # restore the terminal
         node.speed = 0.0
