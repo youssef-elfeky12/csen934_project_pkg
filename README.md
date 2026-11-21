@@ -19,6 +19,28 @@ ln -s ~/AS/csen934_project_pkg ~/AS/ros2_ws/src/
 cd ~/AS/ros2_ws && colcon build --packages-select csen934_project_pkg
 ```
 
+## EKF localization test
+
+With Webots running and publishing `/Car_Odom_GT`, run the localization nodes:
+
+```bash
+ros2 run csen934_project_pkg control
+ros2 run csen934_project_pkg localization_add_noise
+ros2 run csen934_project_pkg localization_ekf_node
+```
+
+The EKF subscribes to `/Car_Odom_Noisy` and `/Car_Ackrm`, and publishes
+`/Car_Odom_Filtered`. It uses a five-state bicycle model with configurable
+wheelbase (`--ros-args -p wheelbase:=2.7`).
+
+Plot ground truth, noisy, and filtered trajectories:
+
+```bash
+rqt_plot /Car_Odom_GT/pose/pose/position/x \
+  /Car_Odom_Noisy/pose/pose/position/x \
+  /Car_Odom_Filtered/pose/pose/position/x
+```
+
 **Terminal 1:** start Webots from a terminal where ROS is sourced, so its Python controller can import `rclpy`. Then press play.
 
 ```bash
