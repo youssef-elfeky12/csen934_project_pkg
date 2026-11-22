@@ -1,109 +1,71 @@
-# csen934_project_pkg
+# CSEN934 Project – Milestone 01
 
-CSEN934 Autonomous Systems project: drive a Webots BMW X5 from ROS 2 (Humble).
-
-The Webots controller `CSEN934_Test_OL_Sensors` subscribes to `AckermannDrive` commands and publishes the car's ground-truth odometry:
-
-| Topic | Type | Direction |
-|---|---|---|
-| `/Car_Ackrm` | `ackermann_msgs/AckermannDrive` | ROS → Webots (speed in m/s, steering in rad, + = left) |
-| `/Car_Odom_GT` | `nav_msgs/Odometry` | Webots → ROS (GPS position, IMU orientation, gyro rates) |
-| `/Car_Reset` | `std_srvs/Trigger` (service) | Puts the car back at its start pose, at rest |
-
-## How to run it
-
-Put the package in a workspace and build it:
+## One-time setup (already done on this machine)
 
 ```bash
-ln -s ~/AS/csen934_project_pkg ~/AS/ros2_ws/src/
-cd ~/AS/ros2_ws && colcon build --packages-select csen934_project_pkg
+sudo apt install ros-humble-slam-toolbox ros-humble-cartographer-ros ros-humble-pointcloud-to-laserscan \
+  ros-humble-gtsam ros-humble-cv-bridge ros-humble-pcl-msgs ros-humble-tf2-sensor-msgs ros-humble-xacro
+cd ~/AS/ros2_ws/src
+ln -s ~/AS/csen934_project_pkg .
+git clone -b ros2 https://github.com/TixiaoShan/LIO-SAM.git
+cd ~/AS/ros2_ws && colcon build
 ```
 
-## EKF localization test
-
-With Webots running and publishing `/Car_Odom_GT`, run the localization nodes:
-
-```bash
-ros2 run csen934_project_pkg control
-ros2 run csen934_project_pkg localization_add_noise
-ros2 run csen934_project_pkg localization_ekf_node
-```
-
-The EKF subscribes to `/Car_Odom_Noisy` and `/Car_Ackrm`, and publishes
-`/Car_Odom_Filtered`. It uses a five-state bicycle model with configurable
-wheelbase (`--ros-args -p wheelbase:=2.7`).
-
-Plot ground truth, noisy, and filtered trajectories:
-
-```bash
-rqt_plot /Car_Odom_GT/pose/pose/position/x \
-  /Car_Odom_Noisy/pose/pose/position/x \
-  /Car_Odom_Filtered/pose/pose/position/x
-```
-
-**Terminal 1:** start Webots from a terminal where ROS is sourced, so its Python controller can import `rclpy`. Then press play.
-
-```bash
-source /opt/ros/humble/setup.bash
-webots ~/AS/csen934_project_pkg/Webots_Worlds_Controller/Worlds/city.wbt
-```
-
-**Terminal 2:** source both setups, then run **one** of the two:
+In **every** terminal first run:
 
 ```bash
 source /opt/ros/humble/setup.bash && source ~/AS/ros2_ws/install/setup.bash
-
-# Test 1: teleop (graphical window, see controls below)
-ros2 run csen934_project_pkg teleop
-
-# Test 2: constant velocity (defaults: 10 m/s, straight)
-ros2 run csen934_project_pkg control
-ros2 run csen934_project_pkg control --ros-args -p speed:=5.0 -p steering_angle:=0.1
 ```
 
-Don't run teleop and control at the same time: both publish on `/Car_Ackrm`.
+## 1. Webots, control, noise, EKF
 
-To check that the car is alive: `ros2 topic echo /Car_Odom_GT` should print a changing position.
-
-## Teleop controls
-
-The `teleop` window shows a speedometer (target and actual speed), the steering wheel, a live trajectory map and telemetry.
-
-| Key | Action |
+| Terminal | Command |
 |---|---|
-| `W` / `↑` (hold) | Speed up. Release to keep cruising at that speed |
-| `S` / `↓` (hold) | Brake to 0. Release and press again to reverse |
-| `A` `D` / `←` `→` (hold) | Steer. Re-centers on release (can be switched off) |
-| `Space` | Stop |
-| `X` | Center steering |
-| `R` | Reset the car to its start pose |
+| 1 | `webots ~/AS/csen934_project_pkg/Webots_Worlds_Controller/Worlds/city.wbt` then press ▶ |
+| 2 | `ros2 run csen934_project_pkg control.py` (10 m/s, 0 rad) |
+| 3 | `ros2 run csen934_project_pkg localization_add_noise.py` |
+| 4 | `ros2 run csen934_project_pkg localization_ekf_node.py` |
 
-The sliders and the 0 / 5 / 10 / 15 / 20 m/s buttons set speed and steering with the mouse. Closing the window or pressing Ctrl+C in the terminal stops the car.
+## 2. Plots, graph, bag
 
-Optional parameters: `max_speed` (20.0), `max_reverse` (5.0), `max_steer` (0.5), `accel` (4.0 m/s per second), `steer_rate` (0.8 rad/s). Example:
+| Terminal | Command | Shows |
+|---|---|---|
+| 5 | `ros2 launch csen934_project_pkg plots.launch.py` | 3 rqt_plot windows: x, y, yaw — GT vs Noisy vs Filtered |
+| 6 | `rqt_graph` | all nodes and topics |
+| 7 | `ros2 bag record -o csen934_bag /Car_Odom_GT /Car_Odom_Noisy /Car_Odom_Filtered /Car_Ackrm /Car_Imu /Car_Scan /tf /tf_static /clock` | ROS bag (Ctrl+C to stop) |
+
+`control.py` drives straight, so the car stops at the barrier of the first curve after ~10 s.
+
+## 3. SLAM trials (one at a time)
+
+Keep Webots, the noise node and the EKF running. Stop `control.py` (Ctrl+C), then for each trial:
+
+1. Reset the car: `ros2 service call /Car_Reset std_srvs/srv/Trigger`
+2. Start the trial (opens RViz with the live map and trajectories):
+
+   | Trial | Launch |
+   |---|---|
+   | 2D #1 – slam_toolbox (3D lidar → pointcloud_to_laserscan) | `ros2 launch csen934_project_pkg slam_toolbox.launch.py` |
+   | 2D #2 – Cartographer (3D lidar → pointcloud_to_laserscan) | `ros2 launch csen934_project_pkg cartographer.launch.py` |
+   | 3D – LIO-SAM (3D lidar + IMU) | `ros2 launch csen934_project_pkg lio_sam.launch.py` |
+
+3. Drive one lap around the city: `ros2 run csen934_project_pkg autopilot --ros-args -p laps:=1` (wait for `Lap 1 done`)
+4. Save the map:
+
+   | Trial | Command |
+   |---|---|
+   | slam_toolbox | `ros2 run csen934_project_pkg save_map --ros-args -p name:=slam_toolbox` |
+   | Cartographer | `ros2 run csen934_project_pkg save_map --ros-args -p name:=cartographer` |
+   | LIO-SAM | `ros2 run csen934_project_pkg save_map --ros-args -p name:=lio_sam -p topic:=/lio_sam/mapping/map_global` |
+
+5. Ctrl+C the launch (and the autopilot).
+
+RViz colours: green = ground truth path, blue = EKF path, red = SLAM path.
+
+## 4. Compare the SLAM outputs
 
 ```bash
-ros2 run csen934_project_pkg teleop --ros-args -p max_speed:=15.0 -p accel:=6.0
+ros2 launch csen934_project_pkg compare.launch.py
 ```
 
-The original keyboard-only terminal version is still available as `ros2 run csen934_project_pkg teleop_cli` (w/s speed, a/d steer, x center, space stop, r reset, q quit).
-
-## Resetting the car
-
-The car can be put back at its start pose (the pose in `city.wbt`) without restarting Webots, in any of these ways:
-
-- **Teleop window:** press `R` or click **Reset**. It stops the car first.
-- **Terminal teleop:** press `r`.
-- **Any terminal:**
-  ```bash
-  ros2 service call /Car_Reset std_srvs/srv/Trigger
-  ```
-
-If `control` is running, the car starts driving again right after the reset, since that node keeps publishing its constant command.
-
-The service moves the car through the Webots Supervisor API, so the `BmwX5` node in `city.wbt` has `supervisor TRUE`. To reset the whole simulation instead (all objects, sim time back to 0), use *File → Reset Simulation* (Ctrl+Shift+T) in Webots.
-
-## Troubleshooting
-
-- **No car in Webots / `/Car_Odom_GT` missing.** Webots R2025a downloads the car and city models from GitHub the first time. If the console shows `Error downloading EXTERNPROTO ...`, use *File → Reload World* (don't save) until the errors are gone. Downloads are cached, so each reload only retries what is missing.
-- **`ModuleNotFoundError: No module named 'rclpy'` in the Webots console.** Webots was started without sourcing ROS. Close it and start it again as in Terminal 1.
+Shows the three saved maps overlaid in one RViz view.

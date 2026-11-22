@@ -2,9 +2,10 @@ import copy
 import math
 import random
 
-import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
+
+from csen934_project_pkg.node_runner import run
 
 # Standard deviations from the milestone specification
 STD_XY = 0.3                    # m      (x and y position)
@@ -84,14 +85,7 @@ class NoiseNode(Node):
 
 
 def main():
-    rclpy.init()
-    node = NoiseNode()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    node.destroy_node()
-    rclpy.shutdown()
+    run(NoiseNode)
 
 
 if __name__ == "__main__":

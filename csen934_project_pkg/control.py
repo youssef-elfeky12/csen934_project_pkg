@@ -1,16 +1,17 @@
-import rclpy
-from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.signals import SignalHandlerOptions
+"""Control node: publishes a constant AckermannDrive command on /Car_Ackrm.
+
+Defaults are the milestone values: speed = 10 m/s, steering angle = 0 rad (straight line).
+Override with --ros-args -p speed:=5.0 -p steering_angle:=0.1
+"""
 from ackermann_msgs.msg import AckermannDrive
+from rclpy.node import Node
+
+from csen934_project_pkg.node_runner import run
 
 
 class ControlNode(Node):
-    """Open-loop controller: publishes a constant speed / steering command."""
-
     def __init__(self):
         super().__init__("control_node")
-        # Override at launch, e.g. --ros-args -p speed:=5.0 -p steering_angle:=0.1
         self.speed = float(self.declare_parameter("speed", 10.0).value)          # m/s
         self.steer = float(self.declare_parameter("steering_angle", 0.0).value)  # rad, +left
         self.pub = self.create_publisher(AckermannDrive, "/Car_Ackrm", 10)
@@ -26,18 +27,7 @@ class ControlNode(Node):
 
 
 def main():
-    # Keep the context alive on Ctrl+C so the final stop command can still be sent
-    rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
-    node = ControlNode()
-    try:
-        rclpy.spin(node)
-    except (KeyboardInterrupt, ExternalShutdownException):
-        pass
-    finally:
-        if rclpy.ok():
-            node.publish_cmd(0.0, 0.0)  # stop the car on exit
-        node.destroy_node()
-        rclpy.try_shutdown()
+    run(ControlNode, on_exit=lambda node: node.publish_cmd(0.0, 0.0))   # stop the car on exit
 
 
 if __name__ == "__main__":

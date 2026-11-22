@@ -1,0 +1,93 @@
+# 3D SLAM trial: LIO-SAM with the 16-layer roof lidar (/Car_PointCloud) and the IMU (/Car_Imu).
+# LIO-SAM gets its own frames (lio_*) so they never clash with odom/base_link; the
+# lio_sam_aligner node links them to the ground-truth frame (odom -> lio_map).
+# TF tree: odom -> lio_map -> lio_odom -> lio_base_link -> lio_lidar
+/**:
+  ros__parameters:
+    use_sim_time: true
+
+    # Topics
+    pointCloudTopic: "/Car_PointCloud"
+    imuTopic: "/Car_Imu"
+    odomTopic: "odometry/imu"
+    gpsTopic: "odometry/gpsz"
+
+    # Frames
+    lidarFrame: "lio_lidar"            # lio_base_link -> lio_lidar is a static TF (launch file)
+    baselinkFrame: "lio_base_link"
+    odometryFrame: "lio_odom"
+    mapFrame: "lio_map"
+
+    # GPS settings (unused)
+    useImuHeadingInitialization: true
+    useGpsElevation: false
+    gpsCovThreshold: 2.0
+    poseCovThreshold: 25.0
+
+    # Export settings
+    savePCD: false
+    savePCDDirectory: "/Downloads/LOAM/"
+
+    # Sensor: Webots Lidar, 16 layers x 900 points, 30 deg vertical field of view (VLP-16 like)
+    sensor: velodyne
+    N_SCAN: 16
+    Horizon_SCAN: 900
+    downsampleRate: 1
+    lidarMinRange: 2.0
+    lidarMaxRange: 100.0
+
+    # IMU: Webots sensors are noise-free; small values keep the factor graph well conditioned
+    imuAccNoise: 0.01
+    imuGyrNoise: 0.001
+    imuAccBiasN: 0.0001
+    imuGyrBiasN: 0.00001
+    imuGravity: 9.81
+    imuRPYWeight: 0.01
+
+    # IMU and lidar axes are both aligned with the car (x forward, y left, z up)
+    extrinsicTrans: [0.0, 0.0, 0.0]
+    extrinsicRot: [1.0, 0.0, 0.0,
+                   0.0, 1.0, 0.0,
+                   0.0, 0.0, 1.0]
+    extrinsicRPY: [1.0, 0.0, 0.0,
+                   0.0, 1.0, 0.0,
+                   0.0, 0.0, 1.0]
+
+    # LOAM feature threshold
+    edgeThreshold: 1.0
+    surfThreshold: 0.1
+    edgeFeatureMinValidNum: 10
+    surfFeatureMinValidNum: 100
+
+    # Voxel filter params
+    odometrySurfLeafSize: 0.4
+    mappingCornerLeafSize: 0.2
+    mappingSurfLeafSize: 0.4
+
+    # Robot motion constraint
+    z_tollerance: 1000.0
+    rotation_tollerance: 1000.0
+
+    # CPU params
+    numberOfCores: 4
+    mappingProcessInterval: 0.15
+
+    # Surrounding map
+    surroundingkeyframeAddingDistThreshold: 1.0
+    surroundingkeyframeAddingAngleThreshold: 0.2
+    surroundingKeyframeDensity: 2.0
+    surroundingKeyframeSearchRadius: 50.0
+
+    # Loop closure
+    loopClosureEnableFlag: true
+    loopClosureFrequency: 1.0
+    surroundingKeyframeSize: 50
+    historyKeyframeSearchRadius: 15.0
+    historyKeyframeSearchTimeDiff: 30.0
+    historyKeyframeSearchNum: 25
+    historyKeyframeFitnessScore: 0.3
+
+    # Visualization
+    globalMapVisualizationSearchRadius: 1000.0
+    globalMapVisualizationPoseDensity: 10.0
+    globalMapVisualizationLeafSize: 1.0

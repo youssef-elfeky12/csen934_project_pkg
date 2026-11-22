@@ -1,4 +1,5 @@
 import select
+import signal
 import sys
 import termios
 import tty
@@ -88,6 +89,7 @@ def read_key():
 def main():
     # Keep the context alive on Ctrl+C so the final stop command can still be sent
     rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+    signal.signal(signal.SIGINT, signal.default_int_handler)
     node = TeleopNode()
     settings = termios.tcgetattr(sys.stdin)
     print(HELP)
