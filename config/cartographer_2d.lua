@@ -35,7 +35,10 @@ MAP_BUILDER.use_trajectory_builder_2d = true
 TRAJECTORY_BUILDER_2D.use_imu_data = false
 TRAJECTORY_BUILDER_2D.min_range = 2.0
 TRAJECTORY_BUILDER_2D.max_range = 60.0
-TRAJECTORY_BUILDER_2D.missing_data_ray_length = 10.0
+TRAJECTORY_BUILDER_2D.missing_data_ray_length = 3.0     -- rays with no return: little free space
+-- Crisper grid: walls seen a few times become clearly occupied (defaults 0.55 / 0.49)
+TRAJECTORY_BUILDER_2D.submaps.range_data_inserter.probability_grid_range_data_inserter.hit_probability = 0.7
+TRAJECTORY_BUILDER_2D.submaps.range_data_inserter.probability_grid_range_data_inserter.miss_probability = 0.4
 TRAJECTORY_BUILDER_2D.num_accumulated_range_data = 1
 -- The EKF odometry is accurate to a few cm: start each scan match from the odometry
 -- prediction (not from a brute-force correlative search, which slides along the

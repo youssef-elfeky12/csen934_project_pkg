@@ -33,6 +33,42 @@ def yaw_of_matrix(m):
     return math.atan2(m[1, 0], m[0, 0])
 
 
+def north_up(grid, res, ox, oy, yaw):
+    """Turn a grid (row 0 = lowest y) by the nearest multiple of 90 deg so it is stored
+    north-up in the odom frame (e.g. Cartographer's map starts along the car's heading).
+
+    Returns (grid, origin_x, origin_y, remaining_yaw).
+    """
+    k = int(round(yaw / (math.pi / 2)))
+    if k % 4 == 0:
+        return grid, ox, oy, yaw
+    rest = yaw - k * math.pi / 2
+    h, w = grid.shape
+    c, s = math.cos(yaw), math.sin(yaw)
+    corners = [(ox + c * x - s * y, oy + s * x + c * y)
+               for x in (0.0, w * res) for y in (0.0, h * res)]
+    cr, sr = math.cos(-rest), math.sin(-rest)          # corners in the north-up frame
+    local = [(cr * x - sr * y, sr * x + cr * y) for x, y in corners]
+    mx, my = min(p[0] for p in local), min(p[1] for p in local)
+    cr, sr = math.cos(rest), math.sin(rest)
+    return np.rot90(grid, -k), cr * mx - sr * my, sr * mx + cr * my, rest
+
+
+def write_map(folder, name, img, res, ox, oy, yaw):
+    """Write <name>.pgm + <name>.yaml (img: row 0 = lowest y, values 0/205/254)."""
+    img, ox, oy, yaw = north_up(img, res, ox, oy, yaw)
+    img = np.ascontiguousarray(np.flipud(img))               # image row 0 = top (max y)
+    pgm = os.path.join(folder, f"{name}.pgm")
+    with open(pgm, "wb") as f:
+        f.write(f"P5\n{img.shape[1]} {img.shape[0]}\n255\n".encode())
+        f.write(img.tobytes())
+    with open(os.path.join(folder, f"{name}.yaml"), "w") as f:
+        f.write(f"image: {name}.pgm\nresolution: {res}\n"
+                f"origin: [{ox:.4f}, {oy:.4f}, {yaw:.6f}]\n"
+                "negate: 0\noccupied_thresh: 0.65\nfree_thresh: 0.25\n")
+    return pgm
+
+
 class SaveMap(Node):
     def __init__(self):
         super().__init__("save_map")
@@ -93,16 +129,7 @@ class SaveMap(Node):
         img = np.full(data.shape, 205, dtype=np.uint8)     # unknown
         img[(data >= 0) & (data <= 25)] = 254               # free
         img[data >= 65] = 0                                 # occupied
-        img = np.flipud(img)                                # image row 0 = top (max y)
-        pgm = os.path.join(self.dir, f"{self.name}.pgm")
-        with open(pgm, "wb") as f:
-            f.write(f"P5\n{info.width} {info.height}\n255\n".encode())
-            f.write(img.tobytes())
-        with open(os.path.join(self.dir, f"{self.name}.yaml"), "w") as f:
-            f.write(f"image: {self.name}.pgm\nresolution: {info.resolution}\n"
-                    f"origin: [{origin[0]:.4f}, {origin[1]:.4f}, {yaw:.6f}]\n"
-                    "negate: 0\noccupied_thresh: 0.65\nfree_thresh: 0.25\n")
-        return pgm
+        return write_map(self.dir, self.name, img, info.resolution, origin[0], origin[1], yaw)
 
     def save_cloud(self, msg, p, R):
         offsets = {f.name: f.offset for f in msg.fields}

@@ -49,7 +49,7 @@ Keep Webots, the noise node and the EKF running. Stop `control.py` (Ctrl+C), the
    | 2D #2 – Cartographer (3D lidar → pointcloud_to_laserscan) | `ros2 launch csen934_project_pkg cartographer.launch.py` |
    | 3D – LIO-SAM (3D lidar + IMU) | `ros2 launch csen934_project_pkg lio_sam.launch.py` |
 
-3. Drive one lap around the city: `ros2 run csen934_project_pkg autopilot --ros-args -p laps:=1` (wait for `Lap 1 done`)
+3. Drive one lap (a ~1 km figure-8 through both loops of the city): `ros2 run csen934_project_pkg autopilot --ros-args -p laps:=1` (wait for `Lap 1 done`)
 4. Save the map:
 
    | Trial | Command |
